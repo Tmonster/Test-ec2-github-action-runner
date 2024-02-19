@@ -32,7 +32,7 @@ jobs:
   #     shell:
   #       aws ec2 start-instances --instance-id i-0b2d4c509fc3f1e3a
 
-  Prepare-EC2-Runner:
+  Run-EC2-Runner:
     name: Make duckdb and generate benchmark data
     runs-on: self-hosted
     env:
@@ -73,16 +73,10 @@ jobs:
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
 
-      - name: get pwd
-        shell: bash
-        working-directory: duckdb
-        run: echo $(pwd) > pwd.txt
-
       - name: Build
         shell: bash
         working-directory: duckdb
         run: |
-          echo $
           make clean
           make
           git clone --branch main https://github.com/duckdb/duckdb.git --depth=1
