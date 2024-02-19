@@ -18,7 +18,7 @@ on:
 jobs:
  regression-test-benchmark-runner:
   name: Regression Tests
-  runs-on: [self-hosted, Linux, X64, t2.large]
+  runs-on: self-hosted
   env:
     CC: gcc-10
     CXX: g++-10
