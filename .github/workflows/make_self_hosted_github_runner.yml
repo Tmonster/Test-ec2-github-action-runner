@@ -44,15 +44,35 @@ jobs:
       BUILD_JEMALLOC: 1
 
     steps: 
+      - name: Install
+        shell: bash
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 libssl-dev && pip install requests
+
+      - name: Setup Ccache
+        uses: hendrikmuhs/ccache-action@main
+
+      - name: move duckdb-main to duckdb-old
+        shell: bash
+        run: |
+          if [! -d ../duckdb-main]; then
+            git clone git@github.com:duckdb/duckdb.git duckdb-main
+            cd ../duckdb-main
+            make 
+            cd ..
+          fi
+          rm -rf duckdb-old
+          mkdir -p duckdb-old
+          cp -R duckdb-main/ duckdb-old
+
       - uses: actions/checkout@v4
         with:
           repository: 'duckdb/duckdb'
-          path: 'duckdb'
+          path: 'duckdb-main'
           fetch-depth: 0
 
       - name: mount duckdb_benchmark_data to persistent storage
         shell: bash
-        working-directory: duckdb
+        working-directory: duckdb-main
         run: |
           rm -rf duckdb_benchmark_data
           sudo mkfs -t xfs -f /dev/nvme1n1
@@ -64,48 +84,61 @@ jobs:
         with:
           python-version: '3.7'
 
-      - name: Install
-        shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 libssl-dev && pip install requests
-
-      - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@main
-
       - name: Build
         shell: bash
-        working-directory: duckdb
+        working-directory: duckdb-main
         run: |
           make clean
           make
-          git clone --branch main https://github.com/duckdb/duckdb.git --depth=1
-          cd duckdb
-          make
-          cd ..
 
       - name: Set up benchmarks
         shell: bash
-        working-directory: duckdb
+        working-directory: duckdb-main
         run: |
-          cp -r benchmark duckdb/
+          cp -r benchmark ../duckdb-old
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
       - name: Load data for sf 100 benchmarks
-        working-directory: duckdb/duckdb_benchmark_data
+        working-directory: duckdb-main/duckdb_benchmark_data
         shell: bash
         run: |
-          aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db tpch_sf1.duckdb 1> /dev/null # pipe to dev/null otherwise logs on the web ui are unruly.
+          aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db tpch_sf1.duckdb 1> /dev/null
+          ln -s tpch_sf1.duckdb tpch_sf1_parquet.duckdb
+          ../build/release/duckdb -c tpch_sf1.duckdb "EXPORT DATABASE 'tpch_sf1_parquet' (FORMAT PARQUET);" 
 
       - name: Regression Test TPCH
-        working-directory: duckdb
+        working-directory: duckdb-main
+        if: always()
         shell: bash
         run: |
-          python scripts/regression_test_runner.py --old=duckdb/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch.csv --verbose
+          python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch.csv --verbose
+
+      - name: Regression Test TPCH-PARQUET
+        working-directory: duckdb-main
+        if: always()
+        shell: bash
+        run: |
+          python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch_parquet.csv --verbose
+
+      - name: Regression Test H2OAI
+        working-directory: duckdb-main
+        if: always()
+        shell: bash
+        run: |
+          python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/h2oai.csv --verbose
+
+      # - name: Regression Test CSV
+      #   working-directory: duckdb-main
+      #   if: always()
+      #   shell: bash
+      #   run: |
+      #     python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/csv.csv --verbose
 
       - name: shut down
         if: always()
@@ -130,32 +163,3 @@ jobs:
   #       shell: bash
   #       run: aws ec2 stop-instances --instance-id i-0b2d4c509fc3f1e3a
 
-    # - name: Regression Test TPCH-PARQUET
-    #   if: always()
-    #   shell: bash
-    #   run: |
-    #     python scripts/regression_test_runner.py --old=duckdb/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch_parquet.csv --verbose --threads=2
-
-    # - name: Regression Test TPCDS
-    #   if: always()
-    #   shell: bash
-    #   run: |
-    #     python scripts/regression_test_runner.py --old=duckdb/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpcds.csv --verbose --threads=2
-
-    # - name: Regression Test H2OAI
-    #   if: always()
-    #   shell: bash
-    #   run: |
-    #     python scripts/regression_test_runner.py --old=duckdb/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/h2oai.csv --verbose --threads=2
-
-    # - name: Regression Test IMDB
-    #   if: always()
-    #   shell: bash
-    #   run: |
-    #     python scripts/regression_test_runner.py --old=duckdb/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/imdb.csv --verbose --threads=2
-
-    # - name: Regression Test CSV
-    #   if: always()
-    #   shell: bash
-    #   run: |
-    #     python scripts/regression_test_runner.py --old=duckdb/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/csv.csv --verbose --threads=2
