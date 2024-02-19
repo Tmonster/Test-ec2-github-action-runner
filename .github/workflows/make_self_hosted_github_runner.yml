@@ -15,18 +15,10 @@ on:
     paths-ignore:
       - '**.md'
 
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' || github.sha }}
-  cancel-in-progress: true
-
-env:
-  GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
 jobs:
  regression-test-benchmark-runner:
   name: Regression Tests
-  runs-on: [self-hosted, linux, X64, t2.large]
+  runs-on: [self-hosted, Linux, X64, t2.large]
   env:
     CC: gcc-10
     CXX: g++-10
