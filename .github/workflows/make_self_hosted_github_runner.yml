@@ -58,9 +58,9 @@ jobs:
       - name: move duckdb-main to duckdb-old
         shell: bash
         run: |
-          if [! -d ../duckdb-main]; then
-            git clone git@github.com:duckdb/duckdb.git duckdb-main
-            cd ../duckdb-main
+          if [ ! -d "duckdb-main" ]; then
+            git clone https://github.com/duckdb/duckdb duckdb-main
+            cd duckdb-main
             make 
             cd ..
           fi
@@ -139,10 +139,10 @@ jobs:
         run: |
           python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/h2oai.csv --verbose
 
-      - name: shut down
-        if: always()
-        shell: bash
-        run: sudo shutdown
+      # - name: shut down
+      #   if: always()
+      #   shell: bash
+      #   run: sudo shutdown
 
   stop-ec2-runner:
     name: Turn off machine
