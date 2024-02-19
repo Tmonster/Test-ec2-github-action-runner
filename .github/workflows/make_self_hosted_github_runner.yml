@@ -29,8 +29,8 @@ jobs:
           aws-region: us-east-1
 
       - name: Start EC2 runner
-        shell:
-          aws ec2 start-instances --instance-id i-0b2d4c509fc3f1e3a
+        shell: bash
+        run: aws ec2 start-instances --instance-id i-0b2d4c509fc3f1e3a
 
   run-benchmarks-on-runner:
     name: Make duckdb and generate benchmark data
