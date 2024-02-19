@@ -88,6 +88,12 @@ jobs:
         run: |
           cp -r benchmark duckdb/
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Load data for sf 100 benchmarks
         working-directory: duckdb/duckdb_benchmark_data
@@ -97,7 +103,7 @@ jobs:
           mv tpch_sf100.duckdb tpch_sf1.duckdb
 
       - name: Regression Test TPCH
-        if: always()
+        working-directory: duckdb
         shell: bash
         run: |
           python scripts/regression_test_runner.py --old=duckdb/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch.csv --verbose
