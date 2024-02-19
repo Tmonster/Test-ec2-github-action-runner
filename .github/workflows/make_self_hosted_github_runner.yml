@@ -68,20 +68,26 @@ jobs:
 
       - name: Install
         shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli && pip install requests
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli make && pip install requests
 
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
+
+      - name: get pwd
+        shell: bash
+        working-directory: duckdb
+        run: echo $(pwd) > pwd.txt
 
       - name: Build
         shell: bash
         working-directory: duckdb
         run: |
+          echo $
           make clean
-          GEN=ninja make
+          make
           git clone --branch main https://github.com/duckdb/duckdb.git --depth=1
           cd duckdb
-          GEN=ninja make
+          make
           cd ..
 
       - name: Set up benchmarks
