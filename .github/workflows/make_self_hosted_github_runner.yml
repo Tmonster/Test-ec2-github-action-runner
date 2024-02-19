@@ -100,7 +100,7 @@ jobs:
         shell: bash
         run: |
           aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db .
-          mv tpch_sf100.duckdb tpch_sf1.duckdb
+          mv tpch-sf100.duckdb tpch_sf1.duckdb
 
       - name: Regression Test TPCH
         working-directory: duckdb
