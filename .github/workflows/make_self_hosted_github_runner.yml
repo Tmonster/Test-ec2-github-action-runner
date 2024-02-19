@@ -68,6 +68,7 @@ jobs:
           mkdir -p duckdb-old
           cp -R duckdb-main/* duckdb-old
 
+
       - uses: actions/checkout@v4
         with:
           repository: 'duckdb/duckdb'
@@ -113,7 +114,7 @@ jobs:
         shell: bash
         run: |
           ../build/release/duckdb tpch_sf1.duckdb -c "call dbgen(sf=1); export database 'tpch_sf1_parquet' (FORMAT PARQUET);"
-          ls -s tpch_sf1.duckdb tpch_sf1_parquet.duckdb
+          ln -s tpch_sf1.duckdb tpch_sf1_parquet.duckdb
 
       - name: Regression Test TPCH
         working-directory: duckdb-main
