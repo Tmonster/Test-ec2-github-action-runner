@@ -32,7 +32,7 @@ jobs:
   #     shell:
   #       aws ec2 start-instances --instance-id i-0b2d4c509fc3f1e3a
 
-  Prepare machine:
+  Prepare-EC2-Runner:
     name: Make duckdb and generate benchmark data
     runs-on: self-hosted
     env:
