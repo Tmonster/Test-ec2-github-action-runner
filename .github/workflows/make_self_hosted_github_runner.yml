@@ -68,7 +68,7 @@ jobs:
 
       - name: Install
         shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make && pip install requests
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 && pip install requests
 
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
