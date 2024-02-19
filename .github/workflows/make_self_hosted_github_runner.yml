@@ -46,7 +46,7 @@ jobs:
     steps: 
       - name: Install
         shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 libssl-dev
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 libssl-dev pip
 
       - name: Install requests
         shell: bash
