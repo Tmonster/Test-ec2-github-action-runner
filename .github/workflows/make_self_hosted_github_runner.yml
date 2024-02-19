@@ -57,7 +57,7 @@ jobs:
         working-directory: duckdb
         run: |
           rm -rf duckdb_benchmark_data
-          sudo mkfs -t xfs /dev/nvme1n1
+          sudo mkfs -t xfs -f /dev/nvme1n1
           mkdir duckdb_benchmark_data
           sudo mount /dev/nvme1n1 duckdb_benchmark_data
           sudo chown -R ubuntu duckdb_benchmark_data
