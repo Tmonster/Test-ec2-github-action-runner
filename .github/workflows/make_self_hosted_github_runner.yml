@@ -66,13 +66,20 @@ jobs:
           fi
           rm -rf duckdb-old
           mkdir -p duckdb-old
-          cp -R duckdb-main/ duckdb-old
+          cp -R duckdb-main/* duckdb-old
 
       - uses: actions/checkout@v4
         with:
           repository: 'duckdb/duckdb'
           path: 'duckdb-main'
           fetch-depth: 0
+
+      - name: Build
+        shell: bash
+        working-directory: duckdb-main
+        run: |
+          make clean
+          make
 
       - name: mount duckdb_benchmark_data to persistent storage
         shell: bash
@@ -83,17 +90,6 @@ jobs:
           mkdir duckdb_benchmark_data
           sudo mount /dev/nvme1n1 duckdb_benchmark_data
           sudo chown -R ubuntu duckdb_benchmark_data
-
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.7'
-
-      - name: Build
-        shell: bash
-        working-directory: duckdb-main
-        run: |
-          make clean
-          make
 
       - name: Set up benchmarks
         shell: bash
@@ -117,6 +113,7 @@ jobs:
         shell: bash
         run: |
           ../build/release/duckdb tpch_sf1.duckdb -c "call dbgen(sf=1); export database 'tpch_sf1_parquet' (FORMAT PARQUET);"
+          ls -s tpch_sf1.duckdb tpch_sf1_parquet.duckdb
 
       - name: Regression Test TPCH
         working-directory: duckdb-main
@@ -131,13 +128,6 @@ jobs:
         shell: bash
         run: |
           python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch_parquet.csv --verbose
-
-      - name: Regression Test H2OAI
-        working-directory: duckdb-main
-        if: always()
-        shell: bash
-        run: |
-          python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/h2oai.csv --verbose
 
       # - name: shut down
       #   if: always()
