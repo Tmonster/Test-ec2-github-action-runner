@@ -99,8 +99,7 @@ jobs:
         working-directory: duckdb/duckdb_benchmark_data
         shell: bash
         run: |
-          aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db . 1> /dev/null # pipe to dev/null otherwise logs on the web ui are unruly.
-          mv tpch-sf100.duckdb tpch_sf1.duckdb
+          aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db tpch_sf1.duckdb 1> /dev/null # pipe to dev/null otherwise logs on the web ui are unruly.
 
       - name: Regression Test TPCH
         working-directory: duckdb
