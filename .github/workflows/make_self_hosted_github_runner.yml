@@ -104,23 +104,13 @@ jobs:
           aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db .
           mv tpch_sf100.duckdb tpch_sf1.duckdb
 
-  Run-benchmarks:
-    name: Actually run the benchmarks
-    runs-on: self-hosted
-
-    steps:
       - name: Regression Test TPCH
         if: always()
         shell: bash
         run: |
           python scripts/regression_test_runner.py --old=duckdb/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch.csv --verbose
 
-  ShutDown:
-    name: Shutdown machine
-    runs-on: self-hosted
-
-    steps:
-      - name: shut it down
+      - name: shut down
         if: always()
         shell: bash
         run: echo "going to shutdown" > want_to_shutdown.txt
