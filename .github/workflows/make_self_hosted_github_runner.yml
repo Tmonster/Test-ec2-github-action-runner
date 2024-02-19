@@ -36,8 +36,6 @@ jobs:
     name: Make duckdb and generate benchmark data
     runs-on: self-hosted
     env:
-      CC: gcc-10
-      CXX: g++-10
       GEN: ninja
       BUILD_BENCHMARK: 1
       BUILD_TPCH: 1
@@ -68,7 +66,7 @@ jobs:
 
       - name: Install
         shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 && pip install requests
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 libssl-dev && pip install requests
 
       - name: Setup Ccache
         uses: hendrikmuhs/ccache-action@main
