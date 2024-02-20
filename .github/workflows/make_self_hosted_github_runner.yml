@@ -108,7 +108,7 @@ jobs:
         working-directory: duckdb-main/duckdb_benchmark_data
         shell: bash
         run: |
-          aws s3 cp s3://duckdb-blobs/data/tpch-sf1.db tpch_sf100.duckdb 1> /dev/null
+          ../build/release/duckdb tpch_sf100.duckdb -c "call dbgen(sf=1);"
 
       - name: Regression Test TPCH
         working-directory: duckdb-main
@@ -127,29 +127,29 @@ jobs:
           printf "main \n$(cat main_version.txt)\n old\n$(cat old_version.txt)\n$(cat regression_output.txt)"  > issue_body.txt
           gh issue create --repo Tmonster/test-ec2-github-action-runner  --title "Weekly regression tests failure" --body-file issue_body.txt
 
-      - name: shut down
-        if: always()
-        shell: bash
-        run: sudo shutdown
+      # - name: shut down
+      #   if: always()
+      #   shell: bash
+      #   run: sudo shutdown
 
-  stop-ec2-runner:
-    name: Turn off machine
-    runs-on: ubuntu-latest
-    needs:
-      - start-runner # required to get output from the start-runner job
-      - run-benchmarks-on-runner # required to wait when the main job is done
+  # stop-ec2-runner:
+  #   name: Turn off machine
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - start-runner # required to get output from the start-runner job
+  #     - run-benchmarks-on-runner # required to wait when the main job is done
 
-    steps:
-      - name: Configure AWS credentials
-        if: always()
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+  #   steps:
+  #     - name: Configure AWS credentials
+  #       if: always()
+  #       uses: aws-actions/configure-aws-credentials@v1
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: us-east-1
 
-      - name: Stop machine
-        if: always()
-        shell: bash
-        run: aws ec2 stop-instances --instance-ids i-0b2d4c509fc3f1e3a
+  #     - name: Stop machine
+  #       if: always()
+  #       shell: bash
+  #       run: aws ec2 stop-instances --instance-ids i-0b2d4c509fc3f1e3a
 
