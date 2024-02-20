@@ -40,6 +40,7 @@ jobs:
       BUILD_TPCDS: 1
       BUILD_HTTPFS: 1
       BUILD_JEMALLOC: 1
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps: 
       - name: Install
@@ -107,7 +108,7 @@ jobs:
         working-directory: duckdb-main/duckdb_benchmark_data
         shell: bash
         run: |
-          aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db tpch_sf100.duckdb 1> /dev/null
+          aws s3 cp s3://duckdb-blobs/data/tpch-sf1.db tpch_sf100.duckdb 1> /dev/null
 
       - name: Regression Test TPCH
         working-directory: duckdb-main
