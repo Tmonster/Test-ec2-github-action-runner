@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   repository_dispatch:
   schedule:
-    - cron:  '0 12 * * *'
+    - cron:  '0 15 * * *'
   push:
     branches:
       - '**'
@@ -118,13 +118,13 @@ jobs:
           python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/large.csv --verbose > regression_output.txt
 
       - name: Create duckdb-internal issue
-        if: failure()
+        if: always()
         shell: bash
         run: |
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
           printf "main \n$(cat main_version.txt)\n old\n$(cat old_version.txt)\n$(cat regression_output.txt)"  > issue_body.txt
-          gh issue create --repo duckdblabs/duckdb-internal --label "High Priority" --title "Weekly regression tests failure" --body-file issue_body.txt
+          gh issue create --repo Tmonster/test-ec2-github-action-runner  --title "Weekly regression tests failure" --body-file issue_body.txt
 
       - name: shut down
         if: always()
