@@ -54,7 +54,6 @@ jobs:
       BUILD_BENCHMARK: 1
       BUILD_TPCH: 1
       BUILD_TPCDS: 1
-      BUILD_HTTPFS: 1
       BUILD_JEMALLOC: 1
       
     steps: 
@@ -74,16 +73,12 @@ jobs:
         run: |
           if [ ! -d "duckdb-main" ]; then
             git clone https://github.com/duckdb/duckdb duckdb-main
-            cd duckdb-main
-            make 
-            cd ..
           fi
           # if previous_failed exists, last run regressed, so we don't update duckdb-old
           if [ ! -f previous_failed.txt ]; then
             rm -rf duckdb-old
-            mkdir -p duckdb-old
-            cp -R duckdb-main/* duckdb-old
             sudo umount -q duckdb-main/duckdb_benchmark_data || /bin/true # this might fail if nothing is mounted. During debugging, things may stay mounted, so it's nice to not have this fail ever
+            mv duckdb-main duckdb-old
           fi
 
 
@@ -93,19 +88,15 @@ jobs:
           path: 'duckdb-main'
           fetch-depth: 0
 
-      - name: Build main
+      - name: Build old and main
         shell: bash
-        working-directory: duckdb-main
         run: |
-          make clean
+          cd duckdb-main
           make
-
-      - name: Build old
-        shell: bash
-        working-directory: duckdb-old
-        run: |
-          make clean
+          cd ..
+          cd duckdb-old
           make
+          cd ..
 
       - name: mount duckdb_benchmark_data to persistent storage
         shell: bash
