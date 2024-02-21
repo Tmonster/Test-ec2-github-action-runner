@@ -32,6 +32,13 @@ jobs:
         shell: bash
         run: aws ec2 start-instances --instance-id i-0b2ddc509fc3f1e3a
 
+      - name: Create issue if failure
+        if: failure()
+        shell: bash
+        run: |
+          gh issue create --repo Tmonster/test-ec2-github-action-runner --title "Weekly Regression Test Failure" --body "AWS box could not be started"
+
+
   run-benchmarks-on-runner:
     name: Make duckdb and generate benchmark data
     needs: 
