@@ -15,6 +15,9 @@ on:
       - '**'
       - '!.github/workflows/make_self_hosted_github_runner.yml'
 
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 jobs:
   start-runner:
     name: Start self-hosted ec2 runner
@@ -51,8 +54,7 @@ jobs:
       BUILD_TPCDS: 1
       BUILD_HTTPFS: 1
       BUILD_JEMALLOC: 1
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      
     steps: 
       - name: Install
         shell: bash
