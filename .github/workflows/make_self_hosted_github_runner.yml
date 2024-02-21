@@ -67,7 +67,7 @@ jobs:
         run: python3 -m pip install requests
 
       - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@main
+        uses: hendrikmuhs/ccache-action@v1.2
 
       - name: move duckdb-main to duckdb-old
         shell: bash
@@ -126,7 +126,7 @@ jobs:
         working-directory: duckdb-main/duckdb_benchmark_data
         shell: bash
         run: |
-          ./duckdb-main/build/release/duckdb tpch_sf100.duckdb -c "call dbgen(sf=1);"
+          ../build/release/duckdb tpch_sf100.duckdb -c "call dbgen(sf=1);"
           # aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db tpch_sf100.duckdb 1> /dev/null
 
       - name: Regression Test TPCH
