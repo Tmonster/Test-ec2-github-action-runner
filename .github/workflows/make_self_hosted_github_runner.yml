@@ -83,7 +83,7 @@ jobs:
             rm -rf duckdb-old
             mkdir -p duckdb-old
             cp -R duckdb-main/* duckdb-old
-            sudo umount -q duckdb-main/duckdb_benchmark_data
+            sudo umount -q duckdb-main/duckdb_benchmark_data || /bin/true # this might fail if nothing is mounted. During debugging, things may stay mounted, so it's nice to not have this fail ever
           fi
 
 
