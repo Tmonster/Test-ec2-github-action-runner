@@ -130,8 +130,8 @@ jobs:
           rm -rf duckdb-old/duckdb_benchmark_data
 
       - name: Link duckdb-old duckdb_benchmark_data to duckdb-main/duckdb_benchmark_data
-      - working-directory: duckdb-old/duckdb_benchmark_data
-      - shell: bash 
+        working-directory: duckdb-old/duckdb_benchmark_data
+        shell: bash 
         run: |
           rm -rf *
           ln -s ../../duckdb-main/duckdb_benchmark_data/* .
