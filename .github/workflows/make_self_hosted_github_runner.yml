@@ -17,6 +17,8 @@ on:
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  instance_id: i-0b2d4c509fc3f1e3a
+  gh_issue_repo: Tmonster/test-ec2-github-action-runner
 
 jobs:
   start-runner:
@@ -33,13 +35,13 @@ jobs:
 
       - name: Start EC2 runner
         shell: bash
-        run: aws ec2 start-instances --instance-id i-0b2ddc509fc3f1e3a
+        run: aws ec2 start-instances --instance-id ${{ env.instance_id }}
 
       - name: Create issue if failure
         if: failure()
         shell: bash
         run: |
-          gh issue create --repo Tmonster/test-ec2-github-action-runner --title "Weekly Regression Test Failure" --body "AWS box could not be started"
+          gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body "AWS box with instance-id ${{ env.instance_id }} could not be started"
 
 
   run-benchmarks-on-runner:
@@ -76,6 +78,7 @@ jobs:
             make 
             cd ..
           fi
+          # if previous_failed exists, last run regressed, so we don't update duckdb-old
           if [ ! -f previous_failed.txt ]; then
             rm -rf duckdb-old
             mkdir -p duckdb-old
@@ -123,7 +126,8 @@ jobs:
         working-directory: duckdb-main/duckdb_benchmark_data
         shell: bash
         run: |
-          aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db tpch_sf100.duckdb 1> /dev/null
+          ./duckdb-main/build/release/duckdb tpch_sf100.duckdb -c "call dbgen(sf=1);"
+          # aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db tpch_sf100.duckdb 1> /dev/null
 
       - name: Regression Test TPCH
         working-directory: duckdb-main
@@ -141,14 +145,14 @@ jobs:
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
           printf "``` \n Regressed Version \n$(cat main_version.txt)\n OLD VERSION \n$(cat old_version.txt)\n``` > issue_body.txt
           printf "Regression Output \n ``` \n $(cat regression_output.txt) \n ``` "  >> issue_body.txt
-          gh issue create --repo duckdblabs/duckdb-internal --label "High Priority" --title "Weekly Regression Test Failure" --body-file issue_body.txt
-          touch previous_failed.txt
+          gh issue create --repo ${{ env.gh_issue_repo }} --label "High Priority" --title "Weekly Regression Test Failure" --body-file issue_body.txt
+          touch previous_failed.txt # notify next run that it should not update duckdb-old
 
       - name: Remove previous previous_failed
         if: success()
         shell: bash
         run: |
-          rm previous_failed.txt
+          rm -f previous_failed.txt
 
       - name: shut down
         if: always()
@@ -174,5 +178,5 @@ jobs:
       - name: Stop machine
         if: always()
         shell: bash
-        run: aws ec2 stop-instances --instance-ids i-0b2d4c509fc3f1e3a
+        run: aws ec2 stop-instances --instance-ids ${{ env.instance_id }}
 
