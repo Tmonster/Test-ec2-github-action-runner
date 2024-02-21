@@ -93,9 +93,16 @@ jobs:
           path: 'duckdb-main'
           fetch-depth: 0
 
-      - name: Build
+      - name: Build main
         shell: bash
         working-directory: duckdb-main
+        run: |
+          make clean
+          make
+
+      - name: Build old
+        shell: bash
+        working-directory: duckdb-old
         run: |
           make clean
           make
