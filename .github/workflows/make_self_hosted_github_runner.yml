@@ -121,12 +121,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      # cp --symbolic-link duckdb-main/duckdb_benchmark_data/* duckdb-old/duckdb_benchmark_data/
       - name: Load data for sf 100 benchmarks
-        working-directory: duckdb-main/duckdb_benchmark_data
         shell: bash
         run: |
           ../build/release/duckdb tpch_sf100.duckdb -c "call dbgen(sf=1);"
-          # aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db tpch_sf100.duckdb 1> /dev/null
+          # aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb 1> /dev/null
+          rm -rf duckdb-old/duckdb_benchmark_data
+
+      - name: Link duckdb-old duckdb_benchmark_data to duckdb-main/duckdb_benchmark_data
+      - working-directory: duckdb-old/duckdb_benchmark_data
+      - shell: bash 
+        run: |
+          rm -rf *
+          ln -s ../../duckdb-main/duckdb_benchmark_data/* .
+
 
       - name: Regression Test TPCH
         working-directory: duckdb-main
@@ -152,10 +161,10 @@ jobs:
         run: |
           rm -f previous_failed.txt
 
-      # - name: shut down
-      #   if: always()
-      #   shell: bash
-      #   run: sudo shutdown
+      - name: shut down
+        if: always()
+        shell: bash
+        run: sudo shutdown
 
   stop-ec2-runner:
     name: Turn off machine
@@ -173,8 +182,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      # - name: Stop machine
-      #   if: always()
-      #   shell: bash
-      #   run: aws ec2 stop-instances --instance-ids ${{ env.instance_id }}
+      - name: Stop machine
+        if: always()
+        shell: bash
+        run: aws ec2 stop-instances --instance-ids ${{ env.instance_id }}
 
