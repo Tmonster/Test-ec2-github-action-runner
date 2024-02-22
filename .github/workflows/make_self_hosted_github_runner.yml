@@ -94,14 +94,20 @@ jobs:
           fetch-depth: 0
 
       - name: Set duckdb versions
-        shell:
+        shell: bash
         run: |
           # if main_version.txt exists and previous_failed.txt does not exist
-          if [ ! -f previous_failed.txt ]; then 
+          if [ ! -f previous_failed.txt ] && [ -f duckdb_main_version.txt ]; then 
             cd duckdb-old && git checkout $( cat ../duckdb_main_version.txt ) && cd ..
           fi
+
+      - name: Update duckdb-main
+        shell: bash
+        working-directory: duckdb-main
+        run: |
           # update duckdb_main_version.txt
-          cd duckdb-main && git rev-parse --verify HEAD > ../duckdb_main_version.txt && cd ..
+          git fetch origin && git pull origin main && cd ..
+          git rev-parse --verify HEAD > ../duckdb_main_version.txt
 
       - name: Build old and main
         shell: bash
@@ -133,13 +139,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      # cp --symbolic-link duckdb-main/duckdb_benchmark_data/* duckdb-old/duckdb_benchmark_data/
       - name: Load data for sf100 benchmarks.
         shell: bash
         run: |
           ./duckdb-main/build/release/duckdb tpch_sf100.duckdb -c "call dbgen(sf=1);"
           # aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb 1> /dev/null
-          rm -rf duckdb-old/duckdb_benchmark_data
+          rm -rf duckdb-old/duckdb_benchmark_data/*
 
       - name: Link duckdb-old/duckdb_benchmark_data to duckdb-main/duckdb_benchmark_data
         working-directory: duckdb-old/duckdb_benchmark_data
