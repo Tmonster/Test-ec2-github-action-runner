@@ -163,7 +163,8 @@ jobs:
         id: run_tpch
         shell: bash
         run: |
-          python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/large.csv --verbose > regression_output.txt
+          python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch.csv --verbose > regression_output.txt
+          rm non-existent-dir
 
       - name: Create duckdb-internal issue if faiure
         if: failure()
