@@ -83,17 +83,17 @@ jobs:
           if [ ! -d duckdb-main ] ; then 
             git clone https://github.com/duckdb/duckdb duckdb-main
           else
-            cd duckdb-main && git fetch --all && git pull
+            cd duckdb-main && git fetch --all && git checkout main && git pull origin main
           fi
 
 
-      - name: checkout duckdb-main
+      - name: checkout duckdb-old
         shell: bash
         run: |
           if [ ! -d duckdb-old ] ; then 
             git clone https://github.com/duckdb/duckdb duckdb-old
           else
-            cd duckdb-old && git fetch --all && git pull
+            cd duckdb-old && git fetch --all
           fi
 
 
