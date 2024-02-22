@@ -1,0 +1,194 @@
+name: Regression
+on:
+  workflow_dispatch:
+  repository_dispatch:
+  schedule:
+    - cron:  '30 2 * * *' # runs at 2am CET saturdays
+
+  # push:
+  #   branches:
+  #     - '**'
+
+  # pull_request:
+  #   types: [opened, reopened, ready_for_review]
+  #   paths-ignore:
+  #     - '**'
+  #     - '!.github/workflows/make_self_hosted_github_runner.yml'
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  instance_id: i-0b2d4c509fc3f1e3a
+  gh_issue_repo: Tmonster/test-ec2-github-action-runner
+
+jobs:
+  start-runner:
+    name: Start self-hosted ec2 runner
+    runs-on: ubuntu-latest
+  
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Start EC2 runner
+        shell: bash
+        run: aws ec2 start-instances --instance-id ${{ env.instance_id }}
+
+      - name: Create issue if failure
+        if: failure()
+        shell: bash
+        run: |
+          gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body "AWS box with instance-id ${{ env.instance_id }} could not be started"
+
+
+  run-benchmarks-on-runner:
+    name: Make duckdb and generate benchmark data
+    needs: 
+      - start-runner
+    runs-on: self-hosted
+    env:
+      GEN: ninja
+      BUILD_BENCHMARK: 1
+      BUILD_TPCH: 1
+      BUILD_TPCDS: 1
+      BUILD_JEMALLOC: 1
+      
+    steps: 
+      - name: Install
+        shell: bash
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 libssl-dev pip
+
+      - name: Install requests
+        shell: bash
+        run: python3 -m pip install requests
+
+      - name: umount duckdb-main (helps with debugging)
+        shell: bash
+        run: |
+          if [ ! -d duckdb-main ] && [ ! -d duckdb-main/duckdb_benchmark_data ] ; then 
+            exit 0;
+          fi 
+          if mountpoint -q duckdb-main/duckdb_benchmark_data ; then
+            # unmount main duckdb_benchmark_data. During debugging the mount can cause steps
+            # to fail when copying duckdb-main to duckdb-old
+            sudo umount duckdb-main/duckdb_benchmark_data
+          fi
+
+      - name: checkout duckdb-main
+        shell: bash
+        run: |
+          if [ ! -d duckdb-main ] ; then 
+            git clone https://github.com/duckdb/duckdb duckdb-main
+          else
+            cd duckdb-main && git fetch --all && git checkout main && git pull origin main
+          fi
+          mkdir -p duckdb-main/duckdb_benchmark_data
+
+
+      - name: checkout duckdb-old
+        shell: bash
+        run: |
+          if [ ! -d duckdb-old ] ; then 
+            git clone https://github.com/duckdb/duckdb duckdb-old
+          else
+            cd duckdb-old && git fetch --all && cd ..
+          fi
+          mkdir -p duckdb-old/duckdb_benchmark_data
+
+
+      - name: Set duckdb versions
+        shell: bash
+        run: |
+          # if main_version.txt exists and previous_failed.txt does not exist
+          if [ ! -f previous_failed.txt ] && [ -f duckdb_main_version.txt ]; then 
+            cd duckdb-old && git checkout $( cat ../duckdb_main_version.txt ) && cd ..
+          fi
+
+      - name: Update duckdb_main_version
+        shell: bash
+        working-directory: duckdb-main
+        run: |
+          # update duckdb_main_version.txt
+          git rev-parse --verify HEAD > ../duckdb_main_version.txt
+
+      - name: Build old and main
+        shell: bash
+        run: |
+          cd duckdb-main && make clean && make 
+          cd ..
+          cd duckdb-old && make clean && make
+
+      - name: mount duckdb_benchmark_data to persistent storage
+        shell: bash
+        working-directory: duckdb-main
+        run: |
+          rm -rf duckdb_benchmark_data
+          sudo mkfs -t xfs -f /dev/nvme1n1
+          mkdir duckdb_benchmark_data
+          sudo mount /dev/nvme1n1 duckdb_benchmark_data
+          sudo chown -R ubuntu duckdb_benchmark_data
+
+      - name: Set up benchmarks
+        shell: bash
+        working-directory: duckdb-main
+        run: |
+          cp -r benchmark ../duckdb-old
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Load data for sf100 benchmarks.
+        shell: bash
+        run: |
+          aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb 1> /dev/null
+          rm -rf duckdb-old/duckdb_benchmark_data/*
+
+      - name: Link duckdb-old/duckdb_benchmark_data to duckdb-main/duckdb_benchmark_data
+        working-directory: duckdb-old/duckdb_benchmark_data
+        shell: bash 
+        run: |
+          rm -rf *
+          ln -s ../../duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
+
+      - name: Regression Test TPCH
+        id: run_tpch
+        shell: bash
+        run: |
+          python duckdb-main/scripts/regression_test_runner.py \
+            --old=duckdb-old/build/release/benchmark/benchmark_runner \
+            --new=duckdb-main/build/release/benchmark/benchmark_runner \
+            --benchmarks=duckdb-main/.github/regression/large.csv \
+            --verbose > regression_output.txt
+
+      - name: Create duckdb-internal issue if faiure
+        if: failure()
+        shell: bash
+        run: |
+          # get versions
+          ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
+          ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
+          # create body of text
+          printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n \`\`\` \n" > issue_body.txt
+          printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' regression_output.txt) \n \`\`\` \n"  >> issue_body.txt
+          # create issue
+          gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body-file issue_body.txt
+          # notify next run that it should not update duckdb-old
+          touch previous_failed.txt 
+
+      - name: Remove previous_failed if success.
+        if: success()
+        shell: bash
+        run: |
+          rm -f previous_failed.txt
+
+      - name: shut down
+        if: always()
+        shell: bash
+        run: sudo shutdown
