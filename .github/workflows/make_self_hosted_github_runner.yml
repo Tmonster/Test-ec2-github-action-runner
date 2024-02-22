@@ -159,11 +159,14 @@ jobs:
           ln -s ../../duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
 
       - name: Regression Test TPCH
-        working-directory: duckdb-main
         id: run_tpch
         shell: bash
         run: |
-          python scripts/regression_test_runner.py --old=../duckdb-old/build/release/benchmark/benchmark_runner --new=build/release/benchmark/benchmark_runner --benchmarks=.github/regression/tpch.csv --verbose > regression_output.txt
+          python duckdb-main/scripts/regression_test_runner.py \
+            --old=duckdb-old/build/release/benchmark/benchmark_runner \
+            --new=duckdb-main/build/release/benchmark/benchmark_runner \
+            --benchmarks=duckdb-main/.github/regression/tpch.csv \
+            --verbose > regression_output.txt
           rm non-existent-dir
 
       - name: Create duckdb-internal issue if faiure
@@ -174,8 +177,8 @@ jobs:
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
           # create body of text
-          printf "``` \n Regressed Version \n$(cat main_version.txt)\n OLD VERSION \n$(cat old_version.txt)\n```" > issue_body.txt
-          printf "Regression Output \n ``` \n $(cat regression_output.txt) \n ``` "  >> issue_body.txt
+          printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n\`\`\`" > issue_body.txt
+          printf "Regression Output \n \`\`\` \n $(cat regression_output.txt) \n \`\`\` "  >> issue_body.txt
           # create issue
           gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body-file issue_body.txt
           # notify next run that it should not update duckdb-old
