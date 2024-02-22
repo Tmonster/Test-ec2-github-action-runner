@@ -3,17 +3,17 @@ on:
   workflow_dispatch:
   repository_dispatch:
   schedule:
-    - cron:  '0 1 * * SAT' # runs at 2am CET saturdays
+    - cron:  '30 2 * * *' # runs at 2am CET saturdays
 
-  push:
-    branches:
-      - '**'
+  # push:
+  #   branches:
+  #     - '**'
 
-  pull_request:
-    types: [opened, reopened, ready_for_review]
-    paths-ignore:
-      - '**'
-      - '!.github/workflows/make_self_hosted_github_runner.yml'
+  # pull_request:
+  #   types: [opened, reopened, ready_for_review]
+  #   paths-ignore:
+  #     - '**'
+  #     - '!.github/workflows/make_self_hosted_github_runner.yml'
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
