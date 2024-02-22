@@ -162,12 +162,12 @@ jobs:
         id: run_tpch
         shell: bash
         run: |
+          sed -i 's\exit(exit_code)\exit(1)\g' duckdb-main/scripts/regression_test_runner.py
           python duckdb-main/scripts/regression_test_runner.py \
             --old=duckdb-old/build/release/benchmark/benchmark_runner \
             --new=duckdb-main/build/release/benchmark/benchmark_runner \
             --benchmarks=duckdb-main/.github/regression/tpch.csv \
             --verbose > regression_output.txt
-          rm non-existent-dir
 
       - name: Create duckdb-internal issue if faiure
         if: failure()
