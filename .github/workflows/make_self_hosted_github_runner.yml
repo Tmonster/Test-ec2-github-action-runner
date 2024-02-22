@@ -150,7 +150,7 @@ jobs:
         run: |
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
-          printf "``` \n Regressed Version \n$(cat main_version.txt)\n OLD VERSION \n$(cat old_version.txt)\n``` > issue_body.txt
+          printf "``` \n Regressed Version \n$(cat main_version.txt)\n OLD VERSION \n$(cat old_version.txt)\n```" > issue_body.txt
           printf "Regression Output \n ``` \n $(cat regression_output.txt) \n ``` "  >> issue_body.txt
           gh issue create --repo ${{ env.gh_issue_repo }} --label "High Priority" --title "Weekly Regression Test Failure" --body-file issue_body.txt
           touch previous_failed.txt # notify next run that it should not update duckdb-old
