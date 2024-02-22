@@ -65,20 +65,22 @@ jobs:
         shell: bash
         run: python3 -m pip install requests
 
-      - name: Setup Ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-
       - name: move duckdb-main to duckdb-old
         shell: bash
         run: |
           if [ ! -d "duckdb-main" ]; then
             git clone https://github.com/duckdb/duckdb duckdb-main
           fi
+          if mountpoint -q duckdb-main/duckdb_benchmark_data ; then
+            # unmount main duckdb_benchmark_data. During debugging the mount can cause steps
+            # to fail when copying duckdb-main to duckdb-old
+            sudo umount duckdb-main/duckdb_benchmark_data
+          fi
           # if previous_failed exists, last run regressed, so we don't update duckdb-old
           if [ ! -f previous_failed.txt ]; then
-            rm -rf duckdb-old
-            sudo umount -q duckdb-main/duckdb_benchmark_data || /bin/true # this might fail if nothing is mounted. During debugging, things may stay mounted, so it's nice to not have this fail ever
-            mv duckdb-main duckdb-old
+            mkdir -p duckdb-old
+            rm -rf duckdb-old/*
+            mv duckdb-main/* duckdb-old
           fi
 
 
@@ -91,14 +93,9 @@ jobs:
       - name: Build old and main
         shell: bash
         run: |
-          cd duckdb-main
-          make clean
-          make
+          cd duckdb-main && make clean && make 
           cd ..
-          cd duckdb-old
-          make clean
-          make
-          cd ..
+          cd duckdb-old && make clean && make
 
       - name: mount duckdb_benchmark_data to persistent storage
         shell: bash
