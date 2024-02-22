@@ -27,7 +27,7 @@ jobs:
   
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -65,30 +65,43 @@ jobs:
         shell: bash
         run: python3 -m pip install requests
 
-      - name: move duckdb-main to duckdb-old
+      - name: umount duckdb-main (helps with debugging)
         shell: bash
         run: |
-          if [ ! -d "duckdb-main" ]; then
-            git clone https://github.com/duckdb/duckdb duckdb-main
-          fi
+          if [ ! -d duckdb-main ] && [ ! -d duckdb-main/duckdb_benchmark_data ] ; then 
+            exit 0;
+          fi 
           if mountpoint -q duckdb-main/duckdb_benchmark_data ; then
             # unmount main duckdb_benchmark_data. During debugging the mount can cause steps
             # to fail when copying duckdb-main to duckdb-old
             sudo umount duckdb-main/duckdb_benchmark_data
           fi
-          # if previous_failed exists, last run regressed, so we don't update duckdb-old
-          if [ ! -f previous_failed.txt ]; then
-            mkdir -p duckdb-old
-            rm -rf duckdb-old/*
-            mv duckdb-main/* duckdb-old
-          fi
 
-
-      - uses: actions/checkout@v4
+      - name: checkout duckdb-main
+        uses: actions/checkout@v4
+        if: ${{ ! -d duckdb-main }}
         with:
           repository: 'duckdb/duckdb'
           path: 'duckdb-main'
           fetch-depth: 0
+
+      - name: checkout duckdb-old
+        uses: actions/checkout@v4
+        if: ${{ ! -d duckdb-old }}
+        with:
+          repository: 'duckdb/duckdb'
+          path: 'duckdb-old'
+          fetch-depth: 0
+
+      - name: Set duckdb versions
+        shell:
+        run: |
+          # if main_version.txt exists and previous_failed.txt does not exist
+          if [ ! -f previous_failed.txt ]; then 
+            cd duckdb-old && git checkout $( cat ../duckdb_main_version.txt ) && cd ..
+          fi
+          # update duckdb_main_version.txt
+          cd duckdb-main && git rev-parse --verify HEAD > ../duckdb_main_version.txt && cd ..
 
       - name: Build old and main
         shell: bash
@@ -146,14 +159,18 @@ jobs:
         if: failure()
         shell: bash
         run: |
+          # get versions
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
+          # create body of text
           printf "``` \n Regressed Version \n$(cat main_version.txt)\n OLD VERSION \n$(cat old_version.txt)\n```" > issue_body.txt
           printf "Regression Output \n ``` \n $(cat regression_output.txt) \n ``` "  >> issue_body.txt
+          # create issue
           gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body-file issue_body.txt
-          touch previous_failed.txt # notify next run that it should not update duckdb-old
+          # notify next run that it should not update duckdb-old
+          touch previous_failed.txt 
 
-      - name: Remove previous previous_failed
+      - name: Remove previous_failed if success.
         if: success()
         shell: bash
         run: |
@@ -174,7 +191,7 @@ jobs:
     steps:
       - name: Configure AWS credentials
         if: always()
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
