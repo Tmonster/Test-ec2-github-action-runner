@@ -105,12 +105,11 @@ jobs:
             cd duckdb-old && git checkout $( cat ../duckdb_main_version.txt ) && cd ..
           fi
 
-      - name: Update duckdb-main
+      - name: Update duckdb_main_version
         shell: bash
         working-directory: duckdb-main
         run: |
           # update duckdb_main_version.txt
-          git fetch origin && git pull origin main && cd ..
           git rev-parse --verify HEAD > ../duckdb_main_version.txt
 
       - name: Build old and main
