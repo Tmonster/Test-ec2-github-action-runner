@@ -78,20 +78,24 @@ jobs:
           fi
 
       - name: checkout duckdb-main
-        uses: actions/checkout@v4
-        if: ! -d duckdb-main
-        with:
-          repository: 'duckdb/duckdb'
-          path: 'duckdb-main'
-          fetch-depth: 0
+        shell: bash
+        run: |
+          if [ ! -d duckdb-main ] ; then 
+            git clone https://github.com/duckdb/duckdb duckdb-main
+          else
+            cd duckdb-main && git fetch --all && git pull
+          fi
 
-      - name: checkout duckdb-old
-        uses: actions/checkout@v4
-        if: ! -d duckdb-old
-        with:
-          repository: 'duckdb/duckdb'
-          path: 'duckdb-old'
-          fetch-depth: 0
+
+      - name: checkout duckdb-main
+        shell: bash
+        run: |
+          if [ ! -d duckdb-old ] ; then 
+            git clone https://github.com/duckdb/duckdb duckdb-old
+          else
+            cd duckdb-old && git fetch all && git pull
+          fi
+
 
       - name: Set duckdb versions
         shell: bash
