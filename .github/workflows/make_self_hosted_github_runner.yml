@@ -124,10 +124,10 @@ jobs:
           aws-region: us-east-1
 
       # cp --symbolic-link duckdb-main/duckdb_benchmark_data/* duckdb-old/duckdb_benchmark_data/
-      - name: Load data for sf 100 benchmarks
+      - name: Load data for sf100 benchmarks.
         shell: bash
         run: |
-          ../build/release/duckdb tpch_sf100.duckdb -c "call dbgen(sf=1);"
+          ./duckdb-main/build/release/duckdb tpch_sf100.duckdb -c "call dbgen(sf=1);"
           # aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb 1> /dev/null
           rm -rf duckdb-old/duckdb_benchmark_data
 
