@@ -93,7 +93,7 @@ jobs:
           if [ ! -d duckdb-old ] ; then 
             git clone https://github.com/duckdb/duckdb duckdb-old
           else
-            cd duckdb-old && git fetch all && git pull
+            cd duckdb-old && git fetch --all && git pull
           fi
 
 
