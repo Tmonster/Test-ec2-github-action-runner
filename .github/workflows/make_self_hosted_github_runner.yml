@@ -1,7 +1,7 @@
 name: Weekly Regression
 on:
-  schedule:
-    - cron:  '0 1 * * MON' # runs at 2am CET MONDAY
+  # schedule:
+  #   - cron:  '0 1 * * MON' # runs at 2am CET MONDAY
   workflow_dispatch:
   repository_dispatch:
   push:
@@ -13,7 +13,7 @@ on:
       - '!.github/workflows/WeeklyRegression.yml'
 
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened]
     paths-ignore:
       - '**'
       - '!.github/workflows/WeeklyRegression.yml'
