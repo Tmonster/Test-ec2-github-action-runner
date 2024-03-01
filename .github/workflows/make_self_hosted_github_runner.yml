@@ -1,25 +1,30 @@
-name: Regression
+name: Weekly Regression
 on:
   schedule:
-    - cron:  '50 * * * *' # runs at 2am CET saturdays
-
+    - cron:  '0 1 * * MON' # runs at 2am CET MONDAY
   workflow_dispatch:
   repository_dispatch:
+  push:
+    branches:
+      - '**'
+      - '!main'
+    paths-ignore:
+      - '**'
+      - '!.github/workflows/WeeklyRegression.yml'
 
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+    paths-ignore:
+      - '**'
+      - '!.github/workflows/WeeklyRegression.yml'
 
-  # push:
-  #   branches:
-  #     - '**'
-
-  # pull_request:
-  #   types: [opened, reopened, ready_for_review]
-  #   paths-ignore:
-  #     - '**'
-  #     - '!.github/workflows/make_self_hosted_github_runner.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' || github.sha }}
+  cancel-in-progress: true
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  instance_id: i-0b2d4c509fc3f1e3a
+  instance_id: i-08880cd29bfcd3e61
   gh_issue_repo: Tmonster/test-ec2-github-action-runner
 
 jobs:
@@ -28,15 +33,12 @@ jobs:
     runs-on: ubuntu-latest
   
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
       - name: Start EC2 runner
         shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+          AWS_DEFAULT_REGION: us-east-1
         run: aws ec2 start-instances --instance-id ${{ env.instance_id }}
 
       - name: Create issue if failure
@@ -46,8 +48,8 @@ jobs:
           gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body "AWS box with instance-id ${{ env.instance_id }} could not be started"
 
 
-  run-benchmarks-on-runner:
-    name: Make duckdb and generate benchmark data
+  setup-benchmarks-on-runner:
+    name: Setup Benchmarks
     needs: 
       - start-runner
     runs-on: self-hosted
@@ -57,11 +59,12 @@ jobs:
       BUILD_TPCH: 1
       BUILD_TPCDS: 1
       BUILD_JEMALLOC: 1
+      regression_output: regression_output.txt
       
     steps: 
       - name: Install
         shell: bash
-        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ninja-build awscli cmake make python-is-python3 libssl-dev pip
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq g++ ninja-build awscli cmake make python-is-python3 libssl-dev pip
 
       - name: Install requests
         shell: bash
@@ -139,18 +142,10 @@ jobs:
         run: |
           cp -r benchmark ../duckdb-old
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
       - name: Load data for sf100 benchmarks.
         shell: bash
         run: |
-          aws s3 cp s3://duckdb-blobs/data/tpch-sf100.db duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb 1> /dev/null
-          rm -rf duckdb-old/duckdb_benchmark_data/*
+          wget https://duckdb-blobs.s3.amazonaws.com/data/tpch-sf100.db --output-document duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb
 
       - name: Link duckdb-old/duckdb_benchmark_data to duckdb-main/duckdb_benchmark_data
         working-directory: duckdb-old/duckdb_benchmark_data
@@ -159,15 +154,25 @@ jobs:
           rm -rf *
           ln -s ../../duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
 
+  run-large-benchmarks-on-runner:
+    name: Run TPCH sf100
+    needs: 
+      - start-runner
+      - setup-benchmarks-on-runner
+    runs-on: self-hosted
+    env:
+      GEN: ninja
+      regression_output: regression_output.txt
+      
+    steps:
       - name: Regression Test TPCH
-        id: run_tpch
         shell: bash
         run: |
           python duckdb-main/scripts/regression_test_runner.py \
             --old=duckdb-old/build/release/benchmark/benchmark_runner \
             --new=duckdb-main/build/release/benchmark/benchmark_runner \
             --benchmarks=duckdb-main/.github/regression/large.csv \
-            --verbose > regression_output.txt
+            --verbose > ${{ env.regression_output }}
 
       - name: Create duckdb-internal issue if faiure
         if: failure()
@@ -178,9 +183,9 @@ jobs:
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
           # create body of text
           printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n \`\`\` \n" > issue_body.txt
-          printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' regression_output.txt) \n \`\`\` \n"  >> issue_body.txt
+          printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' ${{ env.regression_output }}) \n \`\`\` \n"  >> issue_body.txt
           # create issue
-          gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body-file issue_body.txt
+          gh issue create --repo ${{ env.gh_issue_repo }} --label="high priority" --title "Weekly Regression Test Failure" --body-file issue_body.txt
           # notify next run that it should not update duckdb-old
           touch previous_failed.txt 
 
@@ -190,7 +195,45 @@ jobs:
         run: |
           rm -f previous_failed.txt
 
-      - name: shut down
-        if: always()
+      - name: Upload results
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.regression_output }}
+          path: ${{ env.regression_output }}
+          if-no-files-found: error
+
+  run-micro-benchmarks:
+    name: Run Micro benchmarks
+    if: ${{ always() }}
+    needs:
+      - start-runner
+      - setup-benchmarks-on-runner
+      - run-large-benchmarks-on-runner
+    env:
+      micro_regression_output: micro_regression_output.txt 
+    runs-on: self-hosted
+    
+    steps:
+      - name: Run micro benchmarks
+        shell: bash
+        run: |
+          python duckdb-main/scripts/regression_test_runner.py \
+            --old=duckdb-old/build/release/benchmark/benchmark_runner \
+            --new=duckdb-main/build/release/benchmark/benchmark_runner \
+            --benchmarks=duckdb-main/.github/regression/micro.csv \
+            --verbose > ${{ env.micro_regression_output }}
+      
+  shutdown:
+    name: shut down
+    if: ${{ always() }}
+    needs:
+      - start-runner
+      - setup-benchmarks-on-runner
+      - run-large-benchmarks-on-runner
+      - run-micro-benchmarks
+
+    steps:
+      - name: shutdown
         shell: bash
         run: sudo shutdown
