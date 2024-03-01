@@ -26,6 +26,7 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   instance_id: i-08880cd29bfcd3e61
   gh_issue_repo: Tmonster/test-ec2-github-action-runner
+  mounted_directory_name: mount-point
 
 jobs:
   start-runner:
@@ -70,31 +71,44 @@ jobs:
         shell: bash
         run: python3 -m pip install requests
 
-      - name: umount duckdb-main (helps with debugging)
+      - name: umount mount-point (helps with debugging)
         shell: bash
         run: |
-          if [ ! -d duckdb-main ] && [ ! -d duckdb-main/duckdb_benchmark_data ] ; then 
+          if [ ! -d ${{ env.mounted_directory_name }} ] ; then 
+            mkdir ${{ env.mounted_directory_name }}
             exit 0;
           fi 
-          if mountpoint -q duckdb-main/duckdb_benchmark_data ; then
-            # unmount main duckdb_benchmark_data. During debugging the mount can cause steps
+          if mountpoint -q ${{ env.mounted_directory_name }} ; then
+            # unmount mount-point. During debugging the mount can cause steps
             # to fail when copying duckdb-main to duckdb-old
-            sudo umount duckdb-main/duckdb_benchmark_data
+            rm -rf ${{ env.mounted_directory_name }}/*
+            sudo umount ${{ env.mounted_directory_name }}
           fi
+
+      - name: Mount to instance storage
+        shell: bash
+        run: |
+          rm -rf ${{ env.mounted_directory_name }}
+          sudo mkfs -t xfs -f /dev/nvme1n1
+          mkdir ${{ env.mounted_directory_name }}
+          sudo mount /dev/nvme1n1 ${{ env.mounted_directory_name }}
+          sudo chown -R ubuntu ${{ env.mounted_directory_name }}
 
       - name: checkout duckdb-main
         shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
         run: |
           if [ ! -d duckdb-main ] ; then 
             git clone https://github.com/duckdb/duckdb duckdb-main
           else
-            cd duckdb-main && git fetch --all && git checkout main && git pull origin main
+            cd duckdb-main && git fetch --all && git checkout main && git pull origin main && cd ..
           fi
           mkdir -p duckdb-main/duckdb_benchmark_data
 
 
       - name: checkout duckdb-old
         shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
         run: |
           if [ ! -d duckdb-old ] ; then 
             git clone https://github.com/duckdb/duckdb duckdb-old
@@ -109,46 +123,37 @@ jobs:
         run: |
           # if main_version.txt exists and previous_failed.txt does not exist
           if [ ! -f previous_failed.txt ] && [ -f duckdb_main_version.txt ]; then 
-            cd duckdb-old && git checkout $( cat ../duckdb_main_version.txt ) && cd ..
+            cd ${{ env.mounted_directory_name }}/duckdb-old && git checkout $( cat ../../duckdb_main_version.txt )
           fi
 
       - name: Update duckdb_main_version
         shell: bash
-        working-directory: duckdb-main
+        working-directory: ${{ env.mounted_directory_name }}/duckdb-main
         run: |
           # update duckdb_main_version.txt
-          git rev-parse --verify HEAD > ../duckdb_main_version.txt
+          git rev-parse --verify HEAD > ../../duckdb_main_version.txt
 
       - name: Build old and main
         shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
         run: |
           cd duckdb-main && make clean && make 
           cd ..
           cd duckdb-old && make clean && make
 
-      - name: mount duckdb_benchmark_data to persistent storage
-        shell: bash
-        working-directory: duckdb-main
-        run: |
-          rm -rf duckdb_benchmark_data
-          sudo mkfs -t xfs -f /dev/nvme1n1
-          mkdir duckdb_benchmark_data
-          sudo mount /dev/nvme1n1 duckdb_benchmark_data
-          sudo chown -R ubuntu duckdb_benchmark_data
-
       - name: Set up benchmarks
         shell: bash
-        working-directory: duckdb-main
+        working-directory: ${{ env.mounted_directory_name }}/duckdb-main
         run: |
           cp -r benchmark ../duckdb-old
 
       - name: Load data for sf100 benchmarks.
         shell: bash
         run: |
-          wget https://duckdb-blobs.s3.amazonaws.com/data/tpch-sf100.db --output-document duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb
+          wget https://duckdb-blobs.s3.amazonaws.com/data/tpch-sf100.db --output-document ${{ env.mounted_directory_name }}/duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb
 
       - name: Link duckdb-old/duckdb_benchmark_data to duckdb-main/duckdb_benchmark_data
-        working-directory: duckdb-old/duckdb_benchmark_data
+        working-directory: ${{ env.mounted_directory_name }}/duckdb-old/duckdb_benchmark_data
         shell: bash 
         run: |
           rm -rf *
@@ -167,6 +172,7 @@ jobs:
     steps:
       - name: Regression Test TPCH
         shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
         run: |
           python duckdb-main/scripts/regression_test_runner.py \
             --old=duckdb-old/build/release/benchmark/benchmark_runner \
@@ -177,6 +183,7 @@ jobs:
       - name: Create duckdb-internal issue if faiure
         if: failure()
         shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
         run: |
           # get versions
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
@@ -192,6 +199,7 @@ jobs:
       - name: Remove previous_failed if success.
         if: success()
         shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
         run: |
           rm -f previous_failed.txt
 
@@ -217,6 +225,7 @@ jobs:
     steps:
       - name: Run micro benchmarks
         shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
         run: |
           python duckdb-main/scripts/regression_test_runner.py \
             --old=duckdb-old/build/release/benchmark/benchmark_runner \
@@ -227,6 +236,7 @@ jobs:
       - name: Create duckdb-internal issue if faiure
         if: failure()
         shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
         run: |
           # get versions
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
