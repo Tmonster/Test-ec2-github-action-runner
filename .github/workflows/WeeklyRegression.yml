@@ -24,7 +24,6 @@ concurrency:
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  instance_id: i-08880cd29bfcd3e61
   gh_issue_repo: Tmonster/test-ec2-github-action-runner
   mounted_directory_name: mount-point
 
@@ -32,6 +31,8 @@ jobs:
   start-runner:
     name: Start self-hosted ec2 runner
     runs-on: ubuntu-latest
+    env:
+      instance_id: i-08880cd29bfcd3e61
   
     steps:
       - name: Start EC2 runner
@@ -198,49 +199,66 @@ jobs:
 
       - name: Upload results
         if: success()
+        working-directory: ${{ env.mounted_directory_name }}
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.regression_output }}
           path: ${{ env.regression_output }}
           if-no-files-found: error
 
-  # run-micro-benchmarks:
-  #   name: Run Micro benchmarks
-  #   if: ${{ always() }}
-  #   needs:
-  #     - start-runner
-  #     - setup-benchmarks-on-runner
-  #     - run-large-benchmarks-on-runner
-  #   env:
-  #     micro_regression_output: micro_regression_output.txt 
-  #   runs-on: self-hosted
+  run-micro-benchmarks:
+    name: Run Micro benchmarks
+    if: ${{ always() }}
+    needs:
+      - start-runner
+      - setup-benchmarks-on-runner
+      - run-large-benchmarks-on-runner
+    env:
+      micro_regression_output: micro_regression_output.txt 
+    runs-on: self-hosted
     
-  #   steps:
-  #     - name: Run micro benchmarks
-  #       shell: bash
-  #       working-directory: ${{ env.mounted_directory_name }}
-  #       run: |
-  #         python duckdb-main/scripts/regression_test_runner.py \
-  #           --old=duckdb-old/build/release/benchmark/benchmark_runner \
-  #           --new=duckdb-main/build/release/benchmark/benchmark_runner \
-  #           --benchmarks=duckdb-main/.github/regression/micro.csv \
-  #           --verbose > ${{ env.micro_regression_output }}
+    steps:
+      - name: Run micro benchmarks
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          python duckdb-main/scripts/regression_test_runner.py \
+            --old=duckdb-old/build/release/benchmark/benchmark_runner \
+            --new=duckdb-main/build/release/benchmark/benchmark_runner \
+            --benchmarks=duckdb-main/.github/regression/micro.csv \
+            --verbose > ${{ env.micro_regression_output }}
 
-  #     - name: Create duckdb-internal issue if faiure
-  #       if: failure()
-  #       shell: bash
-  #       working-directory: ${{ env.mounted_directory_name }}
-  #       run: |
-  #         # get versions
-  #         ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
-  #         ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
-  #         # create body of text
-  #         printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n \`\`\` \n" > issue_body.txt
-  #         printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' ${{ env.regression_output }}) \n \`\`\` \n"  >> issue_body.txt
-  #         # create issue
-  #         gh issue create --repo ${{ env.gh_issue_repo }} --label="high priority" --title "Weekly Regression Test Failure Micro regressions" --body-file issue_body.txt
-  #         # notify next run that it should not update duckdb-old
-  #         touch previous_failed.txt 
+      - name: Create duckdb-internal issue if faiure
+        if: failure()
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          # get versions
+          ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
+          ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
+          # create body of text
+          printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n \`\`\` \n" > issue_body.txt
+          printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' ${{ env.regression_output }}) \n \`\`\` \n"  >> issue_body.txt
+          # create issue
+          gh issue create --repo ${{ env.gh_issue_repo }} --label="high priority" --title "Weekly Regression Test Failure Micro regressions" --body-file issue_body.txt
+          # notify next run that it should not update duckdb-old
+          touch previous_failed.txt 
+
+      - name: Remove previous_failed if success.
+        if: success()
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          rm -f previous_failed.txt
+
+      - name: Upload results
+        if: success()
+        working-directory: ${{ env.mounted_directory_name }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.micro_regression_output }}
+          path: ${{ env.micro_regression_output }}
+          if-no-files-found: error
       
   # shutdown:
   #   name: shut down
