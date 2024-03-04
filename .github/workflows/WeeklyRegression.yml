@@ -200,10 +200,9 @@ jobs:
       - name: Upload results
         uses: actions/upload-artifact@v3
         if: success()
-        working-directory: ${{ env.mounted_directory_name }}
         with:
           name: ${{ env.regression_output }}
-          path: ${{ env.regression_output }}
+          path: ${{ env.mounted_directory_name }}
           if-no-files-found: error
 
   run-micro-benchmarks:
@@ -254,10 +253,9 @@ jobs:
       - name: Upload results
         uses: actions/upload-artifact@v3
         if: success()
-        working-directory: ${{ env.mounted_directory_name }}
         with:
           name: ${{ env.micro_regression_output }}
-          path: ${{ env.micro_regression_output }}
+          path: ${{ env.mounted_directory_name }}
           if-no-files-found: error
       
   # shutdown:
