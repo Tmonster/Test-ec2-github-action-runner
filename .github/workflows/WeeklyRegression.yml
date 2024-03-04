@@ -121,8 +121,9 @@ jobs:
         working-directory: ${{ env.mounted_directory_name }}/duckdb-main
         run: |
           # update duckdb_main_version.txt
-          echo ${{ env.GITHUB_WORKSPACE }}
-          git rev-parse --verify HEAD > ${{ env.GITHUB_WORKSPACE }}/duckdb_main_version.txt
+          git rev-parse --verify HEAD > ../../duckdb_main_version.txt
+          cat ${{ github.workspace }} > ../../github.workspace.txt 
+          cat ${{ env.GITHUB_WORKSPACE }} > ../../GITHUB_WORKSPACE.txt 
 
       - name: Build old and main
         shell: bash
