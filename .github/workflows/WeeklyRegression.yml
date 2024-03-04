@@ -95,27 +95,16 @@ jobs:
           sudo chown -R ubuntu ${{ env.mounted_directory_name }}
 
       - name: checkout duckdb-main
-        shell: bash
-        working-directory: ${{ env.mounted_directory_name }}
-        run: |
-          if [ ! -d duckdb-main ] ; then 
-            git clone https://github.com/duckdb/duckdb duckdb-main
-          else
-            cd duckdb-main && git fetch --all && git checkout main && git pull origin main && cd ..
-          fi
-          mkdir -p duckdb-main/duckdb_benchmark_data
-
+        uses: actions/checkout@v4
+        with:
+          repository: 'duckdb/duckdb'
+          path: ${{ env.mounted_directory_name}}/duckdb-main
 
       - name: checkout duckdb-old
-        shell: bash
-        working-directory: ${{ env.mounted_directory_name }}
-        run: |
-          if [ ! -d duckdb-old ] ; then 
-            git clone https://github.com/duckdb/duckdb duckdb-old
-          else
-            cd duckdb-old && git fetch --all && cd ..
-          fi
-          mkdir -p duckdb-old/duckdb_benchmark_data
+        uses: actions/checkout@v4
+        with:
+          repository: 'duckdb/duckdb'
+          path: ${{ env.mounted_directory_name}}/duckdb-old
 
 
       - name: Set duckdb versions
@@ -126,12 +115,13 @@ jobs:
             cd ${{ env.mounted_directory_name }}/duckdb-old && git checkout $( cat ../../duckdb_main_version.txt )
           fi
 
-      - name: Update duckdb_main_version
+      - name: Store current git tag of duckdb-main
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}/duckdb-main
         run: |
           # update duckdb_main_version.txt
-          git rev-parse --verify HEAD > ../../duckdb_main_version.txt
+          echo ${{ GITHUB_WORKSPACE }}
+          git rev-parse --verify HEAD > ${{ GITHUB_WORKSPACE }}/duckdb_main_version.txt
 
       - name: Build old and main
         shell: bash
@@ -211,43 +201,43 @@ jobs:
           path: ${{ env.regression_output }}
           if-no-files-found: error
 
-  run-micro-benchmarks:
-    name: Run Micro benchmarks
-    if: ${{ always() }}
-    needs:
-      - start-runner
-      - setup-benchmarks-on-runner
-      - run-large-benchmarks-on-runner
-    env:
-      micro_regression_output: micro_regression_output.txt 
-    runs-on: self-hosted
+  # run-micro-benchmarks:
+  #   name: Run Micro benchmarks
+  #   if: ${{ always() }}
+  #   needs:
+  #     - start-runner
+  #     - setup-benchmarks-on-runner
+  #     - run-large-benchmarks-on-runner
+  #   env:
+  #     micro_regression_output: micro_regression_output.txt 
+  #   runs-on: self-hosted
     
-    steps:
-      - name: Run micro benchmarks
-        shell: bash
-        working-directory: ${{ env.mounted_directory_name }}
-        run: |
-          python duckdb-main/scripts/regression_test_runner.py \
-            --old=duckdb-old/build/release/benchmark/benchmark_runner \
-            --new=duckdb-main/build/release/benchmark/benchmark_runner \
-            --benchmarks=duckdb-main/.github/regression/micro.csv \
-            --verbose > ${{ env.micro_regression_output }}
+  #   steps:
+  #     - name: Run micro benchmarks
+  #       shell: bash
+  #       working-directory: ${{ env.mounted_directory_name }}
+  #       run: |
+  #         python duckdb-main/scripts/regression_test_runner.py \
+  #           --old=duckdb-old/build/release/benchmark/benchmark_runner \
+  #           --new=duckdb-main/build/release/benchmark/benchmark_runner \
+  #           --benchmarks=duckdb-main/.github/regression/micro.csv \
+  #           --verbose > ${{ env.micro_regression_output }}
 
-      - name: Create duckdb-internal issue if faiure
-        if: failure()
-        shell: bash
-        working-directory: ${{ env.mounted_directory_name }}
-        run: |
-          # get versions
-          ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
-          ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
-          # create body of text
-          printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n \`\`\` \n" > issue_body.txt
-          printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' ${{ env.regression_output }}) \n \`\`\` \n"  >> issue_body.txt
-          # create issue
-          gh issue create --repo ${{ env.gh_issue_repo }} --label="high priority" --title "Weekly Regression Test Failure Micro regressions" --body-file issue_body.txt
-          # notify next run that it should not update duckdb-old
-          touch previous_failed.txt 
+  #     - name: Create duckdb-internal issue if faiure
+  #       if: failure()
+  #       shell: bash
+  #       working-directory: ${{ env.mounted_directory_name }}
+  #       run: |
+  #         # get versions
+  #         ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
+  #         ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
+  #         # create body of text
+  #         printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n \`\`\` \n" > issue_body.txt
+  #         printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' ${{ env.regression_output }}) \n \`\`\` \n"  >> issue_body.txt
+  #         # create issue
+  #         gh issue create --repo ${{ env.gh_issue_repo }} --label="high priority" --title "Weekly Regression Test Failure Micro regressions" --body-file issue_body.txt
+  #         # notify next run that it should not update duckdb-old
+  #         touch previous_failed.txt 
       
   # shutdown:
   #   name: shut down
