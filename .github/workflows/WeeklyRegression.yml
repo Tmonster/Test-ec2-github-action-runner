@@ -121,9 +121,7 @@ jobs:
         working-directory: ${{ env.mounted_directory_name }}/duckdb-main
         run: |
           # update duckdb_main_version.txt
-          git rev-parse --verify HEAD > ../../duckdb_main_version.txt
-          echo ${{ github.workspace }} > ../../github.workspace.txt 
-          echo ${{ env.GITHUB_WORKSPACE }} > ../../GITHUB_WORKSPACE.txt 
+          git rev-parse --verify HEAD > ${{ github.workspace }}/duckdb_main_version.txt
 
       - name: Build old and main
         shell: bash
@@ -140,16 +138,19 @@ jobs:
           cp -r benchmark ../duckdb-old
 
       - name: Load data for sf100 benchmarks.
+        working-directory: ${{ env.mounted_directory_name}}/duckdb-main
         shell: bash
         run: |
-          wget https://duckdb-blobs.s3.amazonaws.com/data/tpch-sf100.db --output-document ${{ env.mounted_directory_name }}/duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb
+          mkdir -p duckdb_benchmark_data
+          wget https://duckdb-blobs.s3.amazonaws.com/data/tpch-sf100.db --output-document duckdb_benchmark_data/tpch_sf100.duckdb
 
       - name: Link duckdb-old/duckdb_benchmark_data to duckdb-main/duckdb_benchmark_data
-        working-directory: ${{ env.mounted_directory_name }}/duckdb-old/duckdb_benchmark_data
+        working-directory: ${{ env.mounted_directory_name }}/duckdb-old
         shell: bash 
         run: |
-          rm -rf *
-          ln -s ../../duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
+          mkdir duckdb_benchmark_data
+          cd duckdb_benchmark_data
+          ln -s ${{ github.workspace }}/${{ env.mounted_directory_name }}/duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
 
   run-large-benchmarks-on-runner:
     name: Run TPCH sf100
