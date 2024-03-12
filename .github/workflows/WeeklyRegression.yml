@@ -98,13 +98,15 @@ jobs:
       - name: checkout duckdb-main
         uses: actions/checkout@v4
         with:
-          repository: 'duckdb/duckdb'
+          repository: 'Tmonster/duckdb'
+          ref: 'fix_broken_micro_benchmarks'
           path: ${{ env.mounted_directory_name}}/duckdb-main
 
       - name: checkout duckdb-old
         uses: actions/checkout@v4
         with:
-          repository: 'duckdb/duckdb'
+          repository: 'Tmonster/duckdb'
+          ref: 'fix_broken_micro_benchmarks'
           fetch-depth: 0
           path: ${{ env.mounted_directory_name}}/duckdb-old
 
@@ -117,7 +119,7 @@ jobs:
             cd ${{ env.mounted_directory_name }}/duckdb-old && git checkout $( cat ../../duckdb_main_version.txt )
           fi
 
-      - name: Store current git tag of duckdb-main
+      - name: Store current git hash of duckdb-main
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}/duckdb-main
         run: |
@@ -160,7 +162,6 @@ jobs:
       - setup-benchmarks-on-runner
     runs-on: self-hosted
     env:
-      GEN: ninja
       regression_output: regression_output.txt
       
     steps:
@@ -198,7 +199,7 @@ jobs:
           rm -f previous_failed.txt
 
       - name: Upload results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success()
         with:
           name: ${{ env.regression_output }}
@@ -251,7 +252,7 @@ jobs:
           rm -f previous_failed.txt
 
       - name: Upload results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success()
         with:
           name: ${{ env.micro_regression_output }}
