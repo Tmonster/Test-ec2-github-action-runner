@@ -68,12 +68,6 @@ jobs:
         shell: bash
         run: sudo apt-get update -y -qq && sudo apt-get install -y -qq g++ ninja-build awscli cmake make python-is-python3 libssl-dev pip
 
-      - name: wahtever
-        if: ${{ always() && contains(github.ref_name, 'main') }}
-        shell: bash
-        run: |
-          echo "yes" > result_bool.txt
-
       - name: Install requests
         shell: bash
         run: python3 -m pip install requests
@@ -163,7 +157,7 @@ jobs:
           ln -s ${{ github.workspace }}/${{ env.mounted_directory_name }}/duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
 
       - name: Create duckdb-internal issue if faiure
-        if: failure() && ${{ github.ref_name }} == 'main'
+        if:  ${{ failure() && contains(github.ref_name, 'main') }}
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
@@ -195,13 +189,10 @@ jobs:
             --verbose > ${{ env.regression_output }}
 
       - name: Create duckdb-internal issue if faiure
-        if: failure()
+        if: ${{ failure() && contains(github.ref_name, 'main') }}
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
-          if [ ${{ github.ref_name }} != 'main' ]; then
-            exit 0
-          fi
           # get versions
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
@@ -251,13 +242,10 @@ jobs:
             --verbose > ${{ env.micro_regression_output }}
 
       - name: Create duckdb-internal issue if faiure
-        if: failure()
+        if: ${{ failure() && contains(github.ref_name, 'main') }}
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
-          if [ ${{ github.ref_name }} != 'main' ]; then
-            exit 0
-          fi
           # get versions
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
