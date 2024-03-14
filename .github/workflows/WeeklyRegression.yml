@@ -60,7 +60,11 @@ jobs:
       BUILD_BENCHMARK: 1
       BUILD_TPCH: 1
       BUILD_TPCDS: 1
-      BUILD_JEMALLOC: 1
+      BUILD_JSON: 1
+      BUILD_HTTPFS: 1
+      BUILD_ICU: 1
+      BUILD_INET: 1
+      BUILD_JEMALLOC: 
       regression_output: regression_output.txt
       
     steps: 
