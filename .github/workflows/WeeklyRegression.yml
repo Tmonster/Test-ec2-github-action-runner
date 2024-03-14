@@ -163,7 +163,7 @@ jobs:
           ln -s ${{ github.workspace }}/${{ env.mounted_directory_name }}/duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
 
       - name: Create duckdb-internal issue if faiure
-        if: failure() && ${{ github.ref_name == 'main' }}
+        if: failure() && ${{ github.ref_name }} == 'main'
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
@@ -195,7 +195,7 @@ jobs:
             --verbose > ${{ env.regression_output }}
 
       - name: Create duckdb-internal issue if faiure
-        if: failure() && ${{ github.ref_name == 'main' }}
+        if: failure() && ${{ github.ref_name }} == 'main'
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
