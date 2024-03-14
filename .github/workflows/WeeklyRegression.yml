@@ -44,16 +44,10 @@ jobs:
         run: aws ec2 start-instances --instance-id ${{ env.instance_id }}
 
       - name: Create issue if failure
-        if: ${{ failure() || !contains(github.ref_name, 'main') }}
+        if: ${{ failure() && contains(github.ref_name, 'main') }}
         shell: bash
         run: |
           gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body "AWS box with instance-id ${{ env.instance_id }} could not be started"
-
-      - name: wahtever
-        if: ${{ !contains(github.ref_name, 'main') }}
-        shell: bash
-        run: |
-          echo "yes" > result_bool.txt
 
 
   setup-benchmarks-on-runner:
@@ -73,6 +67,12 @@ jobs:
       - name: Install
         shell: bash
         run: sudo apt-get update -y -qq && sudo apt-get install -y -qq g++ ninja-build awscli cmake make python-is-python3 libssl-dev pip
+
+      - name: wahtever
+        if: ${{ always() && contains(github.ref_name, 'main') }}
+        shell: bash
+        run: |
+          echo "yes" > result_bool.txt
 
       - name: Install requests
         shell: bash
