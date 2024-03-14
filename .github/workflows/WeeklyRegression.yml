@@ -162,6 +162,18 @@ jobs:
           cd duckdb_benchmark_data
           ln -s ${{ github.workspace }}/${{ env.mounted_directory_name }}/duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
 
+      - name: Create duckdb-internal issue if faiure
+        if: failure() && ${{ github.ref_name == 'main' }}
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          # create body of text
+          echo "Could not set up weekly benchmarks" > issue_body.txt
+          # create issue
+          gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Setup Failure" --body-file issue_body.txt
+          # notify next run that it should not update duckdb-old
+          touch previous_failed.txt
+
   run-large-benchmarks-on-runner:
     name: Run TPCH sf100
     needs: 
