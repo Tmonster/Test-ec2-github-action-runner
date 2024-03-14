@@ -64,6 +64,14 @@ jobs:
       regression_output: regression_output.txt
       
     steps: 
+
+      - name: Print stuff I dont know what it is
+        shell: bash
+        run: |
+          echo "ref_name = " ${{ github.ref_name }} "\n" > github_vars.txt
+          echo "ref = " ${{ github.ref }} "\n" >> github_vars.txt
+          echo "head_ref = " ${{ github.head_ref }} "\n" >> github_vars.txt
+
       - name: Install
         shell: bash
         run: sudo apt-get update -y -qq && sudo apt-get install -y -qq g++ ninja-build awscli cmake make python-is-python3 libssl-dev pip
@@ -98,16 +106,13 @@ jobs:
       - name: checkout duckdb-main
         uses: actions/checkout@v4
         with:
-          repository: 'Tmonster/duckdb'
-          ref: 'fix_broken_micro_benchmarks'
+          repository: 'duckdb/duckdb'
           path: ${{ env.mounted_directory_name}}/duckdb-main
 
       - name: checkout duckdb-old
         uses: actions/checkout@v4
         with:
-          repository: 'Tmonster/duckdb'
-          ref: 'fix_broken_micro_benchmarks'
-          fetch-depth: 0
+          repository: 'duckdb/duckdb'
           path: ${{ env.mounted_directory_name}}/duckdb-old
 
 
@@ -134,10 +139,12 @@ jobs:
           cd ..
           cd duckdb-old && make clean && make
 
-      - name: Set up benchmarks
+      - name: Set up benchmarks 
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}/duckdb-main
         run: |
+          rm -rf ../duckdb-old/benchmark
+          mkdir ../duckdb-old/benchmark
           cp -r benchmark ../duckdb-old
 
       - name: Load data for sf100 benchmarks.
@@ -176,7 +183,7 @@ jobs:
             --verbose > ${{ env.regression_output }}
 
       - name: Create duckdb-internal issue if faiure
-        if: failure()
+        if: failure() && ${{ github.ref_name == 'main' }}
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
@@ -229,7 +236,7 @@ jobs:
             --verbose > ${{ env.micro_regression_output }}
 
       - name: Create duckdb-internal issue if faiure
-        if: failure()
+        if: failure() && ${{ github.ref_name == 'main' }}
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
@@ -259,17 +266,17 @@ jobs:
           path: ${{ env.mounted_directory_name }}/${{ env.micro_regression_output }}
           if-no-files-found: error
       
-  shutdown:
-    name: shut down
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    needs:
-      - start-runner
-      - setup-benchmarks-on-runner
-      - run-large-benchmarks-on-runner
-      - run-micro-benchmarks
+  # shutdown:
+  #   name: shut down
+  #   if: ${{ always() }}
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - start-runner
+  #     - setup-benchmarks-on-runner
+  #     - run-large-benchmarks-on-runner
+  #     - run-micro-benchmarks
 
-    steps:
-      - name: shutdown
-        shell: bash
-        run: sudo shutdown
+  #   steps:
+  #     - name: shutdown
+  #       shell: bash
+  #       run: sudo shutdown
