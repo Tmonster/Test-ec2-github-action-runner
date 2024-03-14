@@ -64,14 +64,6 @@ jobs:
       regression_output: regression_output.txt
       
     steps: 
-
-      - name: Print stuff I dont know what it is
-        shell: bash
-        run: |
-          echo "ref_name = " ${{ github.ref_name }} "\n" > github_vars.txt
-          echo "ref = " ${{ github.ref }} "\n" >> github_vars.txt
-          echo "head_ref = " ${{ github.head_ref }} "\n" >> github_vars.txt
-
       - name: Install
         shell: bash
         run: sudo apt-get update -y -qq && sudo apt-get install -y -qq g++ ninja-build awscli cmake make python-is-python3 libssl-dev pip
@@ -195,10 +187,13 @@ jobs:
             --verbose > ${{ env.regression_output }}
 
       - name: Create duckdb-internal issue if faiure
-        if: failure() && ${{ github.ref_name }} == 'main'
+        if: failure()
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
+          if [ ${{ github.ref_name }} != 'main' ]; then
+            exit 0
+          fi
           # get versions
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
@@ -248,10 +243,13 @@ jobs:
             --verbose > ${{ env.micro_regression_output }}
 
       - name: Create duckdb-internal issue if faiure
-        if: failure() && ${{ github.ref_name == 'main' }}
+        if: failure()
         shell: bash
         working-directory: ${{ env.mounted_directory_name }}
         run: |
+          if [ ${{ github.ref_name }} != 'main' ]; then
+            exit 0
+          fi
           # get versions
           ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
           ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
