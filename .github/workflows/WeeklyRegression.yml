@@ -50,9 +50,10 @@ jobs:
           gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body "AWS box with instance-id ${{ env.instance_id }} could not be started"
 
       - name: wahtever
+        if: ${{ !contains(github.ref_name, 'main') }}
         shell: bash
         run: |
-          echo ${{ failure() || !contains(github.ref_name, 'main') }} > result_bool.txt
+          echo "yes" > result_bool.txt
 
 
   setup-benchmarks-on-runner:
