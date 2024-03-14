@@ -1,0 +1,292 @@
+name: Weekly Regression
+on:
+  # schedule:
+  #   - cron:  '0 1 * * MON' # runs at 2am CET MONDAY
+  workflow_dispatch:
+  repository_dispatch:
+  push:
+    branches:
+      - '**'
+      - '!main'
+    paths-ignore:
+      - '**'
+      - '!.github/workflows/WeeklyRegression.yml'
+
+  pull_request:
+    types: [opened, reopened]
+    paths-ignore:
+      - '**'
+      - '!.github/workflows/WeeklyRegression.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' || github.sha }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  gh_issue_repo: Tmonster/test-ec2-github-action-runner
+  mounted_directory_name: mount-point
+
+jobs:
+  start-runner:
+    name: Start self-hosted ec2 runner
+    runs-on: ubuntu-latest
+    env:
+      instance_id: i-08880cd29bfcd3e61
+  
+    steps:
+      - name: Start EC2 runner
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+          AWS_DEFAULT_REGION: us-east-1
+        run: aws ec2 start-instances --instance-id ${{ env.instance_id }}
+
+      - name: Create issue if failure
+        if: ${{ failure() && contains(github.ref_name, 'main') }}
+        shell: bash
+        run: |
+          gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Failure" --body "AWS box with instance-id ${{ env.instance_id }} could not be started"
+
+
+  setup-benchmarks-on-runner:
+    name: Setup Benchmarks
+    needs: 
+      - start-runner
+    runs-on: self-hosted
+    env:
+      GEN: ninja
+      BUILD_BENCHMARK: 1
+      BUILD_TPCH: 1
+      BUILD_TPCDS: 1
+      BUILD_JSON: 1
+      BUILD_HTTPFS: 1
+      BUILD_ICU: 1
+      BUILD_INET: 1
+      BUILD_JEMALLOC: 
+      regression_output: regression_output.txt
+      
+    steps: 
+      - name: Install
+        shell: bash
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq g++ ninja-build awscli cmake make python-is-python3 libssl-dev pip
+
+      - name: Install requests
+        shell: bash
+        run: python3 -m pip install requests
+
+      - name: umount mount-point (helps with debugging)
+        shell: bash
+        run: |
+          if [ ! -d ${{ env.mounted_directory_name }} ] ; then 
+            mkdir ${{ env.mounted_directory_name }}
+            exit 0;
+          fi 
+          if mountpoint -q ${{ env.mounted_directory_name }} ; then
+            # unmount mount-point. During debugging the mount can cause steps
+            # to fail when copying duckdb-main to duckdb-old
+            rm -rf ${{ env.mounted_directory_name }}/*
+            sudo umount ${{ env.mounted_directory_name }}
+          fi
+
+      - name: Mount to instance storage
+        shell: bash
+        run: |
+          rm -rf ${{ env.mounted_directory_name }}
+          sudo mkfs -t xfs -f /dev/nvme1n1
+          mkdir ${{ env.mounted_directory_name }}
+          sudo mount /dev/nvme1n1 ${{ env.mounted_directory_name }}
+          sudo chown -R ubuntu ${{ env.mounted_directory_name }}
+
+      - name: checkout duckdb-main
+        uses: actions/checkout@v4
+        with:
+          repository: 'duckdb/duckdb'
+          fetch-depth: 0
+          path: ${{ env.mounted_directory_name}}/duckdb-main
+
+      - name: checkout duckdb-old
+        uses: actions/checkout@v4
+        with:
+          repository: 'duckdb/duckdb'
+          fetch-depth: 0
+          path: ${{ env.mounted_directory_name}}/duckdb-old
+
+
+      - name: Set duckdb versions
+        shell: bash
+        run: |
+          # if main_version.txt exists and previous_failed.txt does not exist
+          if [ ! -f previous_failed.txt ] && [ -f duckdb_main_version.txt ]; then 
+            cd ${{ env.mounted_directory_name }}/duckdb-old && git checkout $( cat ../../duckdb_main_version.txt )
+          fi
+
+      - name: Store current git hash of duckdb-main
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}/duckdb-main
+        run: |
+          # update duckdb_main_version.txt
+          git rev-parse --verify HEAD > ${{ github.workspace }}/duckdb_main_version.txt
+
+      - name: Build old and main
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          cd duckdb-main && make clean && make 
+          cd ..
+          cd duckdb-old && make clean && make
+
+      - name: Set up benchmarks 
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}/duckdb-main
+        run: |
+          rm -rf ../duckdb-old/benchmark
+          mkdir ../duckdb-old/benchmark
+          cp -r benchmark ../duckdb-old
+
+      - name: Load data for sf100 benchmarks.
+        working-directory: ${{ env.mounted_directory_name}}/duckdb-main
+        shell: bash
+        run: |
+          mkdir -p duckdb_benchmark_data
+          wget https://duckdb-blobs.s3.amazonaws.com/data/tpch-sf100.db --output-document duckdb_benchmark_data/tpch_sf100.duckdb
+
+      - name: Link duckdb-old/duckdb_benchmark_data to duckdb-main/duckdb_benchmark_data
+        working-directory: ${{ env.mounted_directory_name }}/duckdb-old
+        shell: bash 
+        run: |
+          mkdir duckdb_benchmark_data
+          cd duckdb_benchmark_data
+          ln -s ${{ github.workspace }}/${{ env.mounted_directory_name }}/duckdb-main/duckdb_benchmark_data/tpch_sf100.duckdb .
+
+      - name: Create duckdb-internal issue if faiure
+        if:  ${{ failure() && contains(github.ref_name, 'main') }}
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          # create body of text
+          echo "Could not set up weekly benchmarks" > issue_body.txt
+          # create issue
+          gh issue create --repo ${{ env.gh_issue_repo }} --title "Weekly Regression Test Setup Failure" --body-file issue_body.txt
+          # notify next run that it should not update duckdb-old
+          touch previous_failed.txt
+
+  run-large-benchmarks-on-runner:
+    name: Run TPCH sf100
+    needs: 
+      - start-runner
+      - setup-benchmarks-on-runner
+    runs-on: self-hosted
+    env:
+      regression_output: regression_output.txt
+      
+    steps:
+      - name: Regression Test TPCH
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          python duckdb-main/scripts/regression_test_runner.py \
+            --old=duckdb-old/build/release/benchmark/benchmark_runner \
+            --new=duckdb-main/build/release/benchmark/benchmark_runner \
+            --benchmarks=duckdb-main/.github/regression/large.csv \
+            --verbose > ${{ env.regression_output }}
+
+      - name: Create duckdb-internal issue if faiure
+        if: ${{ failure() && contains(github.ref_name, 'main') }}
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          # get versions
+          ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
+          ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
+          # create body of text
+          printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n \`\`\` \n" > issue_body.txt
+          printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' ${{ env.regression_output }}) \n \`\`\` \n"  >> issue_body.txt
+          # create issue
+          gh issue create --repo ${{ env.gh_issue_repo }} --label="high priority" --title "Weekly Regression Test Failure" --body-file issue_body.txt
+          # notify next run that it should not update duckdb-old
+          touch previous_failed.txt 
+
+      - name: Remove previous_failed if success.
+        if: success()
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          rm -f previous_failed.txt
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ${{ env.regression_output }}
+          path: ${{ env.mounted_directory_name }}/${{ env.regression_output }}
+          if-no-files-found: error
+
+  run-micro-benchmarks:
+    name: Run Micro benchmarks
+    if: ${{ always() }}
+    needs:
+      - start-runner
+      - setup-benchmarks-on-runner
+      - run-large-benchmarks-on-runner
+    env:
+      micro_regression_output: micro_regression_output.txt 
+    runs-on: self-hosted
+    
+    steps:
+      - name: Run micro benchmarks
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          python duckdb-main/scripts/regression_test_runner.py \
+            --old=duckdb-old/build/release/benchmark/benchmark_runner \
+            --new=duckdb-main/build/release/benchmark/benchmark_runner \
+            --benchmarks=duckdb-main/.github/regression/micro_extended.csv \
+            --verbose > ${{ env.micro_regression_output }}
+
+      - name: Create duckdb-internal issue if faiure
+        if: ${{ failure() && contains(github.ref_name, 'main') }}
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          # get versions
+          ./duckdb-old/build/release/duckdb -c "pragma version" > old_version.txt
+          ./duckdb-main/build/release/duckdb -c "pragma version" > main_version.txt
+          # create body of text
+          printf "\`\`\` \n Regressed Version \n$(cat main_version.txt)\nOLD VERSION \n$(cat old_version.txt) \n \`\`\` \n" > issue_body.txt
+          printf "Regression Output \n \`\`\` \n $(awk '/REGRESSIONS DETECTED/,/OTHER TIMINGS/' ${{ env.regression_output }}) \n \`\`\` \n"  >> issue_body.txt
+          # create issue
+          gh issue create --repo ${{ env.gh_issue_repo }} --label="high priority" --title "Weekly Regression Test Failure Micro regressions" --body-file issue_body.txt
+          # notify next run that it should not update duckdb-old
+          touch previous_failed.txt 
+
+      - name: Remove previous_failed if success.
+        if: success()
+        shell: bash
+        working-directory: ${{ env.mounted_directory_name }}
+        run: |
+          rm -f previous_failed.txt
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ${{ env.micro_regression_output }}
+          path: ${{ env.mounted_directory_name }}/${{ env.micro_regression_output }}
+          if-no-files-found: error
+      
+  # shutdown:
+  #   name: shut down
+  #   if: ${{ always() }}
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - start-runner
+  #     - setup-benchmarks-on-runner
+  #     - run-large-benchmarks-on-runner
+  #     - run-micro-benchmarks
+
+  #   steps:
+  #     - name: shutdown
+  #       shell: bash
+  #       run: sudo shutdown
